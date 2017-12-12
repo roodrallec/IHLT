@@ -127,7 +127,7 @@ def word_order_vector(sentence, union, indexes, threshold):
         if word in sentence:
             order_vector.append(indexes[word])
         else:
-            sim_word, max_sim = most_similar_word(word, sentence)
+            sim_word, max_sim = max_similarity(word, sentence)
             if max_sim > threshold:
                 order_vector.append(indexes[sim_word])
             else:
@@ -135,7 +135,7 @@ def word_order_vector(sentence, union, indexes, threshold):
     return np.array(order_vector)
 
 
-def most_similar_word(synset, sentence):
+def max_similarity(synset, sentence):
     max_sim = -1.0
     sim_word = ""
     for w2 in sentence:
@@ -144,6 +144,20 @@ def most_similar_word(synset, sentence):
             max_sim = similarity
             sim_word = w2
     return sim_word, max_sim
+
+
+# Semantic Similarity
+def semantic_similarity(sentence1, sentence2):
+    # Sum the synset similarity for every word in sentence1
+    simS1 = 0
+    simS2 = 0
+    for ws1 in sentence1:
+        simS1 += max_similarity(ws1, sentence2)[1]
+
+    for ws2 in sentence2:
+        simS2 += max_similarity(ws2, sentence1)[1]
+
+    return 1 / 2 * ((simS1 / len(sentence1)) + (simS2 / len(sentence2)))
 
 
 '''
@@ -175,12 +189,8 @@ def word_order(sent_0, sent_1):
     indexes = {tup[1]: tup[0] for tup in enumerate(union)}
     r1 = word_order_vector(synsets_0, union, indexes, 0.4)
     r2 = word_order_vector(synsets_1, union, indexes, 0.4)
-    return 1.0 - (np.linalg.norm(r1 - r2) / np.linalg.norm(r1 + r2))
-
-
-word_order('Amrozi accused his brother, whom he called "the witness", of deliberately distorting his evidence.',
-           'Referring to him as only "the witness", Amrozi accused his brother of deliberately distorting his '
-           'evidence.')
+    return [semantic_similarity(synsets_0, synsets_1),
+            1.0 - (np.linalg.norm(r1 - r2) / np.linalg.norm(r1 + r2))]
 
 
 print('Training')
@@ -191,6 +201,6 @@ X_test = [word_order(data[0], data[1]) for data in test_input]
 y_test = [int(line.strip()) for line in test_classes]
 print('Results')
 regression = LogisticRegression()
-regression.fit(np.array(X_train).reshape(-1, 1), y_train)
-prediction = regression.predict(np.array(X_test).reshape(-1, 1))
+regression.fit(np.array(X_train), y_train)
+prediction = regression.predict(np.array(X_test))
 MSRP_eval(prediction, y_test)
