@@ -86,6 +86,24 @@ def extract_lemmas_senses(tokens):
     return lemmas, top_synsets
 
 
+# Tokens to senses (top_synset + pos)
+def extract_senses(tokens):
+    top_synsets = []
+    for token in tokens:
+        pos = token[1]
+        wn_pos = wordnet_pos_code(pos)
+        lemma = WordNetLemmatizer().lemmatize(token[0])
+        if wn_pos:
+            synsets = wordnet.synsets(lemma, pos=wn_pos)
+            if len(synsets) > 0:
+                top_synsets.append([synsets[0], token[0]])
+            else:
+                top_synsets.append([None, token[0]])
+        else:
+            top_synsets.append([None, token[0]])
+    return top_synsets
+
+
 # Load the lines of training text as sentences
 def text_to_sentences(filename):
     sentence_pair_array = []
@@ -121,10 +139,13 @@ def MSRP_eval(gs, sys):
     print("acc=", acc, " reject=", reject, " accept=", accept)
 
 
-def word_order_vector(sentence, union, indexes, threshold):
+def get_word_order_vector(sentence, union, indexes, threshold):
+    """
+    Find the word order vector for a sentence
+    """
     order_vector = []
     for word in union:
-        if word in sentence:
+        if word[0] in list(zip(*sentence))[0]:
             order_vector.append(indexes[word])
         else:
             sim_word, max_sim = max_similarity(word, sentence)
@@ -135,29 +156,43 @@ def word_order_vector(sentence, union, indexes, threshold):
     return np.array(order_vector)
 
 
-def max_similarity(synset, sentence):
-    max_sim = -1.0
+def max_similarity(word, sentence):
+    """
+    Find the word in a sentence most similar to a word
+    """
+    max_sim = 0
     sim_word = ""
+    # Find the first synset for the word
+    synset = word[2]
+    # Get the maximum similarity
     for w2 in sentence:
-        similarity = synset.path_similarity(w2)
+        similarity = word_similarity(synset, w2[2])
         if similarity and similarity > max_sim:
             max_sim = similarity
             sim_word = w2
     return sim_word, max_sim
 
 
+def word_similarity(syns1, syns2):
+    if syns1 and syns2:
+        return syns1.path_similarity(syns2)
+    else:
+        return 0
+
+
 # Semantic Similarity
-def semantic_similarity(sentence1, sentence2):
-    # Sum the synset similarity for every word in sentence1
-    simS1 = 0
-    simS2 = 0
-    for ws1 in sentence1:
-        simS1 += max_similarity(ws1, sentence2)[1]
+def get_semantic_vector(sentence, union):
+    """
 
-    for ws2 in sentence2:
-        simS2 += max_similarity(ws2, sentence1)[1]
-
-    return 1 / 2 * ((simS1 / len(sentence1)) + (simS2 / len(sentence2)))
+    """
+    semantic_vector = []
+    for word in union:
+        if word[0] in list(zip(*sentence))[0]:
+            semantic_vector.append(1)
+        else:
+            sim_word, max_sim = max_similarity(word, sentence)
+            semantic_vector.append(max_sim)
+    return np.array(semantic_vector)
 
 
 '''
@@ -180,17 +215,29 @@ def word_order(sent_0, sent_1):
     sent_0, sent_1 = remove_punctuation(sent_0.lower()), remove_punctuation(sent_1.lower())
     words_0, words_1 = words_from_sent(sent_0), words_from_sent(sent_1)
     tokens_0, tokens_1 = tokens_from_words(words_0), tokens_from_words(words_1)
-    lemmas_0, senses_0 = extract_lemmas_senses(tokens_0)
-    lemmas_1, senses_1 = extract_lemmas_senses(tokens_1)
+    senses_0 = extract_senses(tokens_0)
+    senses_1 = extract_senses(tokens_1)
     synsets_0 = [sense[0] for sense in senses_0]
     synsets_1 = [sense[0] for sense in senses_1]
 
-    union = list(set(synsets_0).union(set(synsets_1)))
-    indexes = {tup[1]: tup[0] for tup in enumerate(union)}
-    r1 = word_order_vector(synsets_0, union, indexes, 0.4)
-    r2 = word_order_vector(synsets_1, union, indexes, 0.4)
-    return [semantic_similarity(synsets_0, synsets_1),
-            1.0 - (np.linalg.norm(r1 - r2) / np.linalg.norm(r1 + r2))]
+    word_order_s0 = [(tokens_0[i][0], tokens_0[i][1], synsets_0[i]) for i in range(len(tokens_0))]
+    word_order_s1 = [(tokens_1[i][0], tokens_1[i][1], synsets_1[i]) for i in range(len(tokens_1))]
+    union = list(set(word_order_s0).union(set(word_order_s1)))
+    indexes = {tup[1]: tup[0] + 1 for tup in enumerate(union)}
+    # Calculate the word order vectors
+    word_order_vector_0 = get_word_order_vector(word_order_s0, union, indexes, 0.4)
+    word_order_vector_1 = get_word_order_vector(word_order_s1, union, indexes, 0.4)
+
+    # Calculate the semantic vectors
+    semantic_vector_0 = get_semantic_vector(word_order_s0, union)
+    semantic_vector_1 = get_semantic_vector(word_order_s1, union)
+
+    word_order_similarity = 1.0 - (np.linalg.norm(word_order_vector_0 - word_order_vector_1) / np.linalg.norm(
+        word_order_vector_0 + word_order_vector_1))
+
+    semantic_similarity = np.dot(semantic_vector_0, semantic_vector_1.T) / (
+            np.linalg.norm(semantic_vector_0) * np.linalg.norm(semantic_vector_1))
+    return [word_order_similarity, semantic_similarity]
 
 
 print('Training')
