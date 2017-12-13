@@ -1,23 +1,11 @@
 import string
-import numpy as np
-import pandas as pd
-from nltk.tag.stanford import CoreNLPNERTagger
-from nltk.parse.corenlp import CoreNLPDependencyParser
 from io import open
-from nltk.corpus import brown
 
+import numpy as np
 from nltk import word_tokenize, pos_tag
-from nltk.parse import BllipParser
-from nltk.stem import WordNetLemmatizer
 from nltk.corpus import wordnet, stopwords, wordnet_ic
-from nltk.chunk import ne_chunk
-from nltk.data import find
+from nltk.stem import WordNetLemmatizer
 from sklearn.linear_model import LogisticRegression
-from sklearn.naive_bayes import GaussianNB
-from sklearn.svm import LinearSVC
-from nltk.metrics import *
-from plotly.offline import download_plotlyjs, init_notebook_mode, plot, iplot
-from plotly.graph_objs import Scatter, Figure, Layout
 
 # init_notebook_mode(connected=True)
 brown_ic = wordnet_ic.ic('ic-brown.dat')
@@ -145,7 +133,7 @@ def get_word_order_vector(sentence, union, indexes, threshold):
     """
     order_vector = []
     for word in union:
-        if word[0] in list(zip(*sentence))[0]:
+        if word in sentence:
             order_vector.append(indexes[word])
         else:
             sim_word, max_sim = max_similarity(word, sentence)
@@ -174,6 +162,9 @@ def max_similarity(word, sentence):
 
 
 def word_similarity(syns1, syns2):
+    """
+    Get the similarity between two words
+    """
     if syns1 and syns2:
         return syns1.path_similarity(syns2)
     else:
@@ -183,7 +174,7 @@ def word_similarity(syns1, syns2):
 # Semantic Similarity
 def get_semantic_vector(sentence, union):
     """
-
+    Get the similarity value for every word in a set of two sentences
     """
     semantic_vector = []
     for word in union:
@@ -223,18 +214,22 @@ def word_order(sent_0, sent_1):
     word_order_s0 = [(tokens_0[i][0], tokens_0[i][1], synsets_0[i]) for i in range(len(tokens_0))]
     word_order_s1 = [(tokens_1[i][0], tokens_1[i][1], synsets_1[i]) for i in range(len(tokens_1))]
     union = list(set(word_order_s0).union(set(word_order_s1)))
-    indexes = {tup[1]: tup[0] + 1 for tup in enumerate(union)}
+    indexes_0 = {tup[1]: tup[0] + 1 for tup in enumerate(word_order_s0)}
+    indexes_1 = {tup[1]: tup[0] + 1 for tup in enumerate(word_order_s1)}
     # Calculate the word order vectors
-    word_order_vector_0 = get_word_order_vector(word_order_s0, union, indexes, 0.4)
-    word_order_vector_1 = get_word_order_vector(word_order_s1, union, indexes, 0.4)
+    threshold = 0.4
+    word_order_vector_0 = get_word_order_vector(word_order_s0, union, indexes_0, threshold)
+    word_order_vector_1 = get_word_order_vector(word_order_s1, union, indexes_1, threshold)
 
     # Calculate the semantic vectors
     semantic_vector_0 = get_semantic_vector(word_order_s0, union)
     semantic_vector_1 = get_semantic_vector(word_order_s1, union)
 
+    # Calculate the word order similarity
     word_order_similarity = 1.0 - (np.linalg.norm(word_order_vector_0 - word_order_vector_1) / np.linalg.norm(
         word_order_vector_0 + word_order_vector_1))
 
+    # Calculate the semantic similarity
     semantic_similarity = np.dot(semantic_vector_0, semantic_vector_1.T) / (
             np.linalg.norm(semantic_vector_0) * np.linalg.norm(semantic_vector_1))
     return [word_order_similarity, semantic_similarity]
