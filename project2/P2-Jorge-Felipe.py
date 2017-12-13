@@ -14,6 +14,10 @@ brown_ic = wordnet_ic.ic('ic-brown.dat')
     A collection of useful functions for nlp
 '''
 
+'''
+    A collection of useful functions for nlp
+'''
+
 
 # Removing the punctuation and lowering the case of a string
 def remove_punctuation(line):
@@ -106,16 +110,16 @@ def compare_synsets(synset_a, synset_b):
     wup_similarity = synset_a.wup_similarity(synset_b)
     lin_similarity = synset_a.lin_similarity(synset_b, brown_ic)
     lch_similarity = synset_a.lch_similarity(synset_b)
-    return lcs, similarity, lin_similarity, wup_similarity, lch_similarity
+    return lcs, similarity, wup_similarity, lin_similarity, lch_similarity
 
 
 def count(g, s):
     TP = TN = FP = FN = 0
     for i in range(0, len(g)):
-        if g[i] == s[i] and s[i] == 1: TP += 1
-        if g[i] == s[i] and s[i] == 0: TN += 1
-        if g[i] != s[i] and s[i] == 1: FP += 1
-        if g[i] != s[i] and s[i] == 0: FN += 1
+        if (g[i] == s[i] and s[i] == 1): TP += 1
+        if (g[i] == s[i] and s[i] == 0): TN += 1
+        if (g[i] != s[i] and s[i] == 1): FP += 1
+        if (g[i] != s[i] and s[i] == 0): FN += 1
     return [TP, TN, FP, FN]
 
 
